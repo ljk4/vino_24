@@ -25,14 +25,12 @@ int main(int argc, char* argv[])
         cv::TickMeter tm;
         tm.start();
 
-        
-        armor_detector.preprocess_img(frame);
         std::cout<<"start infer"<<std::endl;
-        armor_detector.startInferAndNMS();
+        armor_detector.startInferAndNMS(frame);
 
         tm.stop();
         std::cout << "time cost: " << tm.getTimeMilli() << "ms" << std::endl;
-        show_number_result(frame, armor_detector.get_armor());
+        show_box_result(frame, armor_detector.get_armor());
         show_points_result(frame, armor_detector.get_armor());
         armor_detector.clear_armor();
         // 按下ESC键退出

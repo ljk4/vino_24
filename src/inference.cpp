@@ -1,39 +1,45 @@
 #include "inference.hpp"
 
+//确定量，根据参数确定
+static constexpr float scale = 1.0/(std::min( MODUL_INPUT_H*1.0/ INPUT_H,  MODUL_INPUT_W*1.0 / INPUT_W));
+static const cv::Size new_unpad = cv::Size(int(round(INPUT_W / scale)), int(round(INPUT_H / scale)));
+static const int dw = (MODUL_INPUT_W - new_unpad.width);
+static const int dh = (MODUL_INPUT_H - new_unpad.height);
+
+//构造函数，同时进行模型加载和预处理配置
 ArmorDetector::ArmorDetector(){
     std::cout<<"initialize"<<std::endl;
+    // -------- 加载模型 --------
     ov::Core core;
     std::shared_ptr<ov::Model> model = core.read_model(model_path);
     // -------- 配置模型 --------
     ov::preprocess::PrePostProcessor ppp(model);
-    // //输入
+    //输入
     ppp.input().tensor()
     .set_element_type(input_type)
     .set_layout(input_layout)
     .set_color_format(input_ColorFormat)
     .set_shape(input_shape)
     ;
+    //预处理依次按顺序执行，缩放必须放最前面，否则会增加耗时，pad必须在转换类型之前，否则会出现错误
     ppp.input().preprocess()
+    .resize(ov::preprocess::ResizeAlgorithm::RESIZE_LINEAR, new_unpad.height, new_unpad.width)
     .convert_element_type(Moudel_type)
-    .convert_color(Moudel_ColorFormat)
     .convert_layout(Moudel_layout)
+    .pad({0, 0, 0, 0},          // batch, channel, height, width
+         {0, 0, dh, dw}, 114.0f, ov::preprocess::PaddingMode::CONSTANT)
+    .convert_color(Moudel_ColorFormat)
     .scale(255.0f)
-    .resize(ov::preprocess::ResizeAlgorithm::RESIZE_LINEAR);
-    // .pad({0, pad_top, pad_left, 0},          // batch, channel, height, width
-    //      {0, pad_bottom, pad_right, 0}, 114.0f, ov::preprocess::PaddingMode::CONSTANT);
+    ;
     // //输出
     ppp.output().tensor().set_element_type(ov::element::f32);
 
     model = ppp.build();
 
     ov::CompiledModel compiled_model = core.compile_model(model, "CPU");
-
     infer_request = compiled_model.create_infer_request();
-    input_port = compiled_model.input();
 }
-
-ArmorDetector::~ArmorDetector(){}
-
+//排序关键点
 static void sort_keypoints(cv::Point2f keypoints[4]) {
     // Sort points based on their y-coordinates (ascending)
     std::sort(keypoints, keypoints + 4, [](const cv::Point& a, const cv::Point& b) {
@@ -61,27 +67,10 @@ static void sort_keypoints(cv::Point2f keypoints[4]) {
     keypoints[3] = top_points[1];     // top-right
 }
 
-void ArmorDetector::preprocess_img(cv::Mat& img)
-{
-    //Resize image if necessary
-    cv::Mat resized_img;
-    if (cv::Size(INPUT_H, INPUT_W) != new_unpad) {
-        cv::resize(img, resized_img, new_unpad, 0, 0, cv::INTER_LINEAR);
-    } else {
-        resized_img = img;
-    }
-    // Add border/padding
-    int top = 0;
-    int bottom = dh;
-    int left = 0 ;
-    int right = dw;
-    cv::Mat bordered_img;
-    cv::copyMakeBorder(resized_img, blob, top, bottom, left, right, cv::BORDER_CONSTANT, cv::Scalar(114,114,114));
-}
-
-void ArmorDetector::startInferAndNMS(){
+//进行推理
+void ArmorDetector::startInferAndNMS(cv::Mat& img){
     // Set input tensor for model with one input
-    ov::Tensor input_tensor(input_port.get_element_type(), input_port.get_shape(), blob.ptr(0));
+    ov::Tensor input_tensor(input_type, input_shape, img.ptr(0));
     infer_request.set_input_tensor(input_tensor);
     // -------- Start inference --------
     infer_request.infer();
@@ -141,7 +130,7 @@ void ArmorDetector::startInferAndNMS(){
 
         }
         armors.class_ids = cls - 4;
-       //NMS处理
+        //NMS处理
         std::vector<int> indices;
         cv::dnn::NMSBoxes(armors.boxes_buffer, armors.class_scores_buffer, BBOX_CONF_THRESH, NMS_THRESH, indices);
 
