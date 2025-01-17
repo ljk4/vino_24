@@ -74,61 +74,9 @@ void ArmorDetector::startInferAndNMS(cv::Mat& img){
     infer_request.set_input_tensor(input_tensor);
     // -------- Start inference --------
     infer_request.infer();
-   // std::cout<<"Run into startInferAndNMS.." << std::endl;
     // -------- Get the inference result --------
     auto output = infer_request.get_output_tensor(0);
     auto output_shape = output.get_shape();
-
-
-//     //////////////////////////////////////////////////////////
-//         /////////////////////////////////
-//     // 提取检测框和分数
-// size_t num_detections = 3549;
-// std::vector<std::array<float, 4>> boxes(num_detections);
-// std::vector<float> scores(num_detections);
-
-// for (size_t i = 0; i < num_detections; ++i) {
-//     boxes[i][0] = output.data<float>()[i * 14 + 0]; // x_min
-//     boxes[i][1] = output.data<float>()[i * 14 + 1]; // y_min
-//     boxes[i][2] = output.data<float>()[i * 14 + 2]; // x_max
-//     boxes[i][3] = output.data<float>()[i * 14 + 3]; // y_max
-//     scores[i] = output.data<float>()[i * 14 + 4];   // 分数
-// }
-
-// // 将 boxes 和 scores 转换为 ov::Tensor
-// ov::Shape boxes_shape = {1, num_detections, 4};
-// ov::Shape scores_shape = {1, 2, num_detections};
-
-// ov::Tensor boxes_tensor(ov::element::f32, boxes_shape, boxes.data());
-// ov::Tensor scores_tensor(ov::element::f32, scores_shape, scores.data());
-
-// // 设置 NMS 参数
-// int64_t max_output_boxes_per_class = 20;
-// float iou_threshold = 0.3;
-// float score_threshold = 0.7;
-
-// // 创建 NMS 节点
-// auto boxes_node = std::make_shared<ov::op::v0::Constant>(boxes_tensor);
-// auto scores_node = std::make_shared<ov::op::v0::Constant>(scores_tensor);
-// auto max_output_boxes_node = ov::op::v0::Constant::create(ov::element::i64, {}, {max_output_boxes_per_class});
-// auto iou_threshold_node = ov::op::v0::Constant::create(ov::element::f32, {}, {iou_threshold});
-// auto score_threshold_node = ov::op::v0::Constant::create(ov::element::f32, {}, {score_threshold});
-
-// auto nms = ov::op::v5::NonMaxSuppression(
-//     boxes_node,
-//     scores_node,
-//     max_output_boxes_node,
-//     iou_threshold_node,
-//     score_threshold_node,
-//     ov::op::v5::NonMaxSuppression::BoxEncodingType::CORNER,
-//     true,  // sort_result_descending
-//     ov::element::i64
-// );
-
-// std::cout << nms.get_default_output_index() << std::endl;
-// // 结果格式为 [selected_indices, selected_scores]
-
-/////////////////////////////////////////////////
 
     // -------- Postprocess the result --------
     float *data = output.data<float>();
@@ -138,8 +86,8 @@ void ArmorDetector::startInferAndNMS(cv::Mat& img){
     for (int cls=4 ; cls < (4+class_num); ++cls) {
         Armors armors;
         for (int i = 0; i < output_buffer.rows; i++) {
+            //找出每个框的最大类别得分，共8400个框
             float class_score = output_buffer.at<float>(i, cls);
-            //保证当前对应的板子信息匹配
             float max_class_score = 0.0;
             for (int j = 4; j <  (4+class_num); j++) {
                 if(max_class_score < output_buffer.at<float>(i, j)){
@@ -201,7 +149,6 @@ void ArmorDetector::startInferAndNMS(cv::Mat& img){
         }
     }
 }
-
 
 std::vector<Armor> ArmorDetector::get_armor()
 {

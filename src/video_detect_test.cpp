@@ -33,6 +33,7 @@ int main(int argc, char* argv[])
 
         show_box_result(frame, armor_detector.get_armor());
         show_points_result(frame, armor_detector.get_armor());
+        
         armor_detector.clear_armor();
         // 按下ESC键退出
         int k = cv::waitKey(10);
