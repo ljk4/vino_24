@@ -12,7 +12,7 @@
 #include <openvino/runtime/runtime.hpp>
 
 static  std::string model_path = "/home/ljk/rm_model/v8_armor/best.onnx";
-static  std::string video_path = "/home/ljk/armr_test/video_test/test1.mp4";
+static  std::string video_path = "/home/ljk/armr_test/video_test/test.mp4";
 static constexpr int INPUT_W = 1280;    // 输入图像的宽度
 static constexpr int INPUT_H = 1024;    // 输入图像的高度
 static constexpr int MODUL_INPUT_W = 416;    // 模型图像的宽度

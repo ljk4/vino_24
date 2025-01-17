@@ -1,5 +1,12 @@
 # 装甲版推理代码
+
 openvino2024版
+
+在测试视频上的耗时：
+- Total frames: 881
+- Max infer time: 12.0828ms
+- Min infer time: 5.64025ms
+- Average infer time: 6.84996ms
 
 ## 使用方法
 
@@ -22,31 +29,32 @@ openvino2024版
     make
     ./INFERENCE
     ```
+
 ## 相关函数
 
 模型初始化和配置在构造函数中完成。
 
 - `armor_detector.startInferAndNMS(frame);`  
-    运行此函数进行推理并将结果保存到 `last_Armors` 中。
+  运行此函数进行推理并将结果保存到 `last_Armors` 中。
 
 - `std::vector<Armor> armors_data = armor_detector.get_armor();`  
-    运行此函数获取检测结果。`Armors` 表示一个框，其定义如下：
+  运行此函数获取检测结果。`Armors` 表示一个框，其定义如下：
     
     ```cpp
     struct Armors {
-            std::vector<float> class_scores_buffer;
-            std::vector<cv::Rect> boxes_buffer;
-            std::vector<std::vector<float>> objects_keypoints_buffer;
-            int class_ids; //0:blue 1:red
+        std::vector<float> class_scores_buffer;
+        std::vector<cv::Rect> boxes_buffer;
+        std::vector<std::vector<float>> objects_keypoints_buffer;
+        int class_ids; // 0: blue, 1: red
     };
     ```
 
 - `show_box_result(frame, armor_detector.get_armor());`  
-    用于可视化检测框。
+  用于可视化检测框。
 
 - `show_points_result(frame, armor_detector.get_armor());`  
-    用于可视化灯条点。
+  用于可视化灯条点。
 
 - `armor_detector.clear_armor();`  
-    此函数用于清空本帧检测结果。
+  此函数用于清空本帧检测结果。
 
