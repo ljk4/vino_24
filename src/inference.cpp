@@ -33,7 +33,6 @@ ArmorDetector::ArmorDetector(){
     ;
     // //输出
     ppp.output().tensor().set_element_type(ov::element::f32);
-
     model = ppp.build();
 
     ov::CompiledModel compiled_model = core.compile_model(model, "CPU");
@@ -71,6 +70,7 @@ static void sort_keypoints(cv::Point2f keypoints[4]) {
 void ArmorDetector::startInferAndNMS(cv::Mat& img){
     // Set input tensor for model with one input
     ov::Tensor input_tensor(input_type, input_shape, img.ptr(0));
+
     infer_request.set_input_tensor(input_tensor);
     // -------- Start inference --------
     infer_request.infer();
@@ -79,18 +79,69 @@ void ArmorDetector::startInferAndNMS(cv::Mat& img){
     auto output = infer_request.get_output_tensor(0);
     auto output_shape = output.get_shape();
 
+
+//     //////////////////////////////////////////////////////////
+//         /////////////////////////////////
+//     // 提取检测框和分数
+// size_t num_detections = 3549;
+// std::vector<std::array<float, 4>> boxes(num_detections);
+// std::vector<float> scores(num_detections);
+
+// for (size_t i = 0; i < num_detections; ++i) {
+//     boxes[i][0] = output.data<float>()[i * 14 + 0]; // x_min
+//     boxes[i][1] = output.data<float>()[i * 14 + 1]; // y_min
+//     boxes[i][2] = output.data<float>()[i * 14 + 2]; // x_max
+//     boxes[i][3] = output.data<float>()[i * 14 + 3]; // y_max
+//     scores[i] = output.data<float>()[i * 14 + 4];   // 分数
+// }
+
+// // 将 boxes 和 scores 转换为 ov::Tensor
+// ov::Shape boxes_shape = {1, num_detections, 4};
+// ov::Shape scores_shape = {1, 2, num_detections};
+
+// ov::Tensor boxes_tensor(ov::element::f32, boxes_shape, boxes.data());
+// ov::Tensor scores_tensor(ov::element::f32, scores_shape, scores.data());
+
+// // 设置 NMS 参数
+// int64_t max_output_boxes_per_class = 20;
+// float iou_threshold = 0.3;
+// float score_threshold = 0.7;
+
+// // 创建 NMS 节点
+// auto boxes_node = std::make_shared<ov::op::v0::Constant>(boxes_tensor);
+// auto scores_node = std::make_shared<ov::op::v0::Constant>(scores_tensor);
+// auto max_output_boxes_node = ov::op::v0::Constant::create(ov::element::i64, {}, {max_output_boxes_per_class});
+// auto iou_threshold_node = ov::op::v0::Constant::create(ov::element::f32, {}, {iou_threshold});
+// auto score_threshold_node = ov::op::v0::Constant::create(ov::element::f32, {}, {score_threshold});
+
+// auto nms = ov::op::v5::NonMaxSuppression(
+//     boxes_node,
+//     scores_node,
+//     max_output_boxes_node,
+//     iou_threshold_node,
+//     score_threshold_node,
+//     ov::op::v5::NonMaxSuppression::BoxEncodingType::CORNER,
+//     true,  // sort_result_descending
+//     ov::element::i64
+// );
+
+// std::cout << nms.get_default_output_index() << std::endl;
+// // 结果格式为 [selected_indices, selected_scores]
+
+/////////////////////////////////////////////////
+
     // -------- Postprocess the result --------
     float *data = output.data<float>();
     cv::Mat output_buffer(output_shape[1], output_shape[2], CV_32F, data);
     transpose(output_buffer, output_buffer); //[8400,14]
     
-    for (int cls=4 ; cls < 6; ++cls) {
+    for (int cls=4 ; cls < (4+class_num); ++cls) {
         Armors armors;
         for (int i = 0; i < output_buffer.rows; i++) {
             float class_score = output_buffer.at<float>(i, cls);
             //保证当前对应的板子信息匹配
             float max_class_score = 0.0;
-            for (int j = 4; j < 6; j++) {
+            for (int j = 4; j <  (4+class_num); j++) {
                 if(max_class_score < output_buffer.at<float>(i, j)){
                     max_class_score = output_buffer.at<float>(i, j);
                 }
@@ -115,7 +166,7 @@ void ArmorDetector::startInferAndNMS(cv::Mat& img){
 
                 // Get the keypoints
                 std::vector<float> keypoints;
-                cv::Mat kpts = output_buffer.row(i).colRange(6, 14);
+                cv::Mat kpts = output_buffer.row(i).colRange( (4+class_num), output_buffer.cols);
                 for (int i = 0; i < 4; i++) {
                     float x = kpts.at<float>(0, i * 2 + 0) * scale;
                     float y = kpts.at<float>(0, i * 2 + 1) * scale;
@@ -125,9 +176,7 @@ void ArmorDetector::startInferAndNMS(cv::Mat& img){
                 }
                 armors.boxes_buffer.push_back(cv::Rect(left, top, width, height));
                 armors.objects_keypoints_buffer.push_back(keypoints);
-
             }
-
         }
         armors.class_ids = cls - 4;
         //NMS处理
@@ -163,4 +212,5 @@ void ArmorDetector::clear_armor()
 {
     last_Armors.clear();
 }
+
 
