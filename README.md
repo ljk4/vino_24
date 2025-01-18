@@ -15,13 +15,11 @@ openvino2024版
     benchmark_app -m last.xml -d CPU -niter 1
     ```
 
-2. 确定输入图像的参数，换视频时记得改尺寸。
+2. 更改模型和视频路径。
 
-3. 更改模型和视频路径。
+3. 在 `src/inference.cpp` 中修改参数，检测参数设置是否正确。
 
-4. 在 `src/inference.cpp` 中修改参数，检测参数设置是否正确。
-
-5. 编译运行：
+4. 编译运行：
     ```sh
     mkdir build
     cd build
@@ -32,7 +30,8 @@ openvino2024版
 
 ## 相关函数
 
-模型初始化和配置在构造函数中完成。
+- `armor_detector.init(frame.cols, frame.rows);`  
+  模型初始化和配置在此函数中完成，通过静态局部变量保证只运行一次。
 
 - `armor_detector.startInferAndNMS(frame);`  
   运行此函数进行推理并将结果保存到 `last_Armors` 中。

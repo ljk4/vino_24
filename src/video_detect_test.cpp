@@ -1,5 +1,6 @@
 #include "inference.hpp"
 #include "visible.hpp"
+
 int main(int argc, char* argv[])
 {
     cv::VideoCapture capture(video_path);
@@ -11,20 +12,24 @@ int main(int argc, char* argv[])
     }
     // 读取视频帧，使用Mat类型的frame存储返回的帧
     cv::Mat frame;
+
+    double total_time = 0;
+    double max_time = 0;
+    double min_time = std::numeric_limits<double>::max();
+    int frame_count = 0;
     ArmorDetector armor_detector;
-
-    // double total_time = 0;
-    // double max_time = 0;
-    // double min_time = std::numeric_limits<double>::max();
-    // int frame_count = 0;
-
     while (true) {
         capture >> frame;
         if (frame.empty()) {
             std::cout << "视频读取完毕" << std::endl;
             break;
         }
-
+        // 初始化模型和配置
+        static bool is_first_frame = true;
+        if (is_first_frame) {
+            is_first_frame = false;
+            armor_detector.init(frame.cols, frame.rows);
+        }
         const int64 start = cv::getTickCount();
         std::cout << "start infer" << std::endl;
         armor_detector.startInferAndNMS(frame);
@@ -40,11 +45,11 @@ int main(int argc, char* argv[])
         armor_detector.clear_armor();
 
         // Update time statistics
-        // double infer_time = t * 1000;
-        // total_time += infer_time;
-        // max_time = std::max(max_time, infer_time);
-        // min_time = std::min(min_time, infer_time);
-        // frame_count++;
+        double infer_time = t * 1000;
+        total_time += infer_time;
+        max_time = std::max(max_time, infer_time);
+        min_time = std::min(min_time, infer_time);
+        frame_count++;
 
         // 按下ESC键退出
         int k = cv::waitKey(10);
@@ -55,12 +60,12 @@ int main(int argc, char* argv[])
         cv::imshow("result", frame);
     }
 
-    // if (frame_count > 0) {
-    //     double avg_time = total_time / frame_count;
-    //     std::cout << "Total frames: " << frame_count << std::endl;
-    //     std::cout << "Max infer time(ms): " << max_time << "ms" << std::endl;
-    //     std::cout << "Min infer time(ms): " << min_time << "ms" << std::endl;
-    //     std::cout << "Average infer time(ms): " << avg_time << "ms" << std::endl;
-    // }
+    if (frame_count > 0) {
+        double avg_time = total_time / frame_count;
+        std::cout << "Total frames: " << frame_count << std::endl;
+        std::cout << "Max infer time(ms): " << max_time << "ms" << std::endl;
+        std::cout << "Min infer time(ms): " << min_time << "ms" << std::endl;
+        std::cout << "Average infer time(ms): " << avg_time << "ms" << std::endl;
+    }
     return 0;
 }

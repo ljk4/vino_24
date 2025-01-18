@@ -1,14 +1,14 @@
 #include "inference.hpp"
 
-//确定量，根据参数确定
-static constexpr float scale = 1.0/(std::min( MODUL_INPUT_H*1.0/ INPUT_H,  MODUL_INPUT_W*1.0 / INPUT_W));
-static const cv::Size new_unpad = cv::Size(int(round(INPUT_W / scale)), int(round(INPUT_H / scale)));
-static const int dw = (MODUL_INPUT_W - new_unpad.width);
-static const int dh = (MODUL_INPUT_H - new_unpad.height);
-
-//构造函数，同时进行模型加载和预处理配置
-ArmorDetector::ArmorDetector(){
-    std::cout<<"initialize"<<std::endl;
+void ArmorDetector::init(const size_t &input_w, const size_t &input_h){
+    INPUT_W = input_w;
+    INPUT_H = input_h;
+    input_shape = {1, INPUT_H, INPUT_W, 3};
+    scale = 1.0 / (std::min(MODUL_INPUT_H * 1.0 / INPUT_H, MODUL_INPUT_W * 1.0 / INPUT_W));
+    cv::Size new_unpad = cv::Size(int(round(INPUT_W / scale)), int(round(INPUT_H / scale)));
+    int dw = (MODUL_INPUT_W - new_unpad.width);
+    int dh = (MODUL_INPUT_H - new_unpad.height);
+        std::cout<<"initialize"<<std::endl;
     // -------- 加载模型 --------
     ov::Core core;
     std::shared_ptr<ov::Model> model = core.read_model(model_path);
@@ -140,8 +140,8 @@ void ArmorDetector::startInferAndNMS(cv::Mat& img){
             armor.class_ids = armors.class_ids;
 
             for (int j = 0; j < 4; j++) {
-                int x = std::clamp(int(armors.objects_keypoints_buffer[i][j * 2 + 0]), 0, INPUT_W);
-                int y = std::clamp(int(armors.objects_keypoints_buffer[i][j * 2 + 1]), 0, INPUT_H);
+                int x = std::clamp(int(armors.objects_keypoints_buffer[i][j * 2 + 0]), 0, static_cast<int>(INPUT_W));
+                int y = std::clamp(int(armors.objects_keypoints_buffer[i][j * 2 + 1]), 0, static_cast<int>(INPUT_H));
                 armor.objects_keypoints[j] = cv::Point(x, y);
             }
             sort_keypoints(armor.objects_keypoints);
