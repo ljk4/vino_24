@@ -107,10 +107,10 @@ void ArmorDetector::startInferAndNMS(cv::Mat& img){
                 float h = output_buffer.at<float>(i, 3);
 
                 // Get the box
-                int left = int((cx - 0.5 * w-2) * scale);
-                int top = int((cy - 0.5 * h - 2) * scale);
-                int width = int(w * 1.2 * scale);
-                int height = int(h * 1.2 * scale);
+                int left = int((cx - 0.5 * w) * scale);
+                int top = int((cy - 0.5 * h) * scale);
+                int width = int(w * scale);
+                int height = int(h * scale);
 
                 // Get the keypoints
                 std::vector<float> keypoints;
