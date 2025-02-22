@@ -1,4 +1,5 @@
 #include "inference.hpp"
+#include <opencv2/opencv.hpp>
 
 void ArmorDetector::init(const size_t &input_w, const size_t &input_h){
     INPUT_W = input_w;
@@ -37,7 +38,35 @@ void ArmorDetector::init(const size_t &input_w, const size_t &input_h){
 
     ov::CompiledModel compiled_model = core.compile_model(model, "CPU");
     infer_request = compiled_model.create_infer_request();
+    initNMSModel();
 }
+
+void ArmorDetector::initNMSModel() {
+    ov::Core core;
+    auto boxes_param = std::make_shared<ov::op::v0::Parameter>(ov::element::f32, 
+        ov::PartialShape{1, ov::Dimension::dynamic(), 4});
+    auto scores_param = std::make_shared<ov::op::v0::Parameter>(ov::element::f32, 
+        ov::PartialShape{1, 1, ov::Dimension::dynamic()});
+    
+    auto max_output = ov::op::v0::Constant::create(ov::element::i64, ov::Shape{}, {100});  // 最大输出框数
+    auto iou_threshold = ov::op::v0::Constant::create(ov::element::f32, ov::Shape{}, {0.3});  // IOU 阈值
+    auto score_threshold = ov::op::v0::Constant::create(ov::element::f32, ov::Shape{}, {0.7});  // 分数阈值
+    auto nms = std::make_shared<ov::op::v5::NonMaxSuppression>(
+        boxes_param,
+        scores_param,
+        max_output,
+        iou_threshold,
+        score_threshold,
+        ov::op::v5::NonMaxSuppression::BoxEncodingType::CORNER,
+        true
+    );
+
+    auto model = std::make_shared<ov::Model>(nms->outputs(), ov::ParameterVector{boxes_param, scores_param});
+    nms_compiled_model = core.compile_model(model, "CPU");
+    nms_infer_request = nms_compiled_model.create_infer_request();
+}
+
+
 //排序关键点
 static void sort_keypoints(cv::Point2f keypoints[4]) {
     // Sort points based on their y-coordinates (ascending)
@@ -107,10 +136,10 @@ void ArmorDetector::startInferAndNMS(cv::Mat& img){
                 float h = output_buffer.at<float>(i, 3);
 
                 // Get the box
-                int left = int((cx - 0.5 * w-2) * scale);
-                int top = int((cy - 0.5 * h - 2) * scale);
-                int width = int(w * 1.2 * scale);
-                int height = int(h * 1.2 * scale);
+                int left = int((cx - 0.5 * w) * scale);
+                int top = int((cy - 0.5 * h) * scale);
+                int width = int(w * scale);
+                int height = int(h * scale);
 
                 // Get the keypoints
                 std::vector<float> keypoints;
@@ -127,21 +156,54 @@ void ArmorDetector::startInferAndNMS(cv::Mat& img){
             }
         }
         armors.class_ids = cls - 4;
-        //NMS处理
+            
+        // OpenVINO NMS处理
         std::vector<int> indices;
-        cv::dnn::NMSBoxes(armors.boxes_buffer, armors.class_scores_buffer, BBOX_CONF_THRESH, NMS_THRESH, indices);
+        if (!armors.boxes_buffer.empty()) {
+/*             // 准备boxes数据 [1, N, 4]
+            size_t num_boxes = armors.boxes_buffer.size();
+            std::vector<float> boxes_data(num_boxes * 4);
+            for (size_t i = 0; i < num_boxes; ++i) {
+                const cv::Rect& box = armors.boxes_buffer[i];
+                boxes_data[i*4 + 0] = static_cast<float>(box.x);
+                boxes_data[i*4 + 1] = static_cast<float>(box.y);
+                boxes_data[i*4 + 2] = static_cast<float>(box.x + box.width);
+                boxes_data[i*4 + 3] = static_cast<float>(box.y + box.height);
+            }
 
-        for(auto i:indices)
-        {
+            // 准备scores数据 [1, 1, N]
+            std::vector<float> scores_data = armors.class_scores_buffer;
+            
+            // 创建OpenVINO Tensor
+            ov::Tensor boxes_tensor(ov::element::f32, {1, num_boxes, 4}, boxes_data.data());
+            ov::Tensor scores_tensor(ov::element::f32, {1, 1, num_boxes}, scores_data.data());
+
+            nms_infer_request.set_input_tensor(0, boxes_tensor);
+            nms_infer_request.set_input_tensor(1, scores_tensor);
+            nms_infer_request.infer(); */
+
+            cv::dnn::NMSBoxes(armors.boxes_buffer, armors.class_scores_buffer, BBOX_CONF_THRESH, NMS_THRESH, indices);
+            std::cout << "OpenCV NMS result: " << indices.size() << " boxes selected" << std::endl;
+
+           /*  auto output = nms_infer_request.get_output_tensor(0);
+            const int64_t* output_data = output.data<int64_t>();
+            size_t num_selected = output.get_shape()[0];
+            
+            for (size_t i = 0; i < num_selected; ++i) {
+                indices.push_back(static_cast<int>(output_data[i*3 + 2]));
+            } */
+        }
+        for(auto i : indices) {
             Armor armor;
-
-            armor.box= armors.boxes_buffer[i];
+            armor.box = armors.boxes_buffer[i];
             armor.class_scores = armors.class_scores_buffer[i];
             armor.class_ids = armors.class_ids;
 
             for (int j = 0; j < 4; j++) {
-                int x = std::clamp(int(armors.objects_keypoints_buffer[i][j * 2 + 0]), 0, static_cast<int>(INPUT_W));
-                int y = std::clamp(int(armors.objects_keypoints_buffer[i][j * 2 + 1]), 0, static_cast<int>(INPUT_H));
+                int x = std::clamp(int(armors.objects_keypoints_buffer[i][j * 2 + 0]), 
+                     0, static_cast<int>(INPUT_W));
+                int y = std::clamp(int(armors.objects_keypoints_buffer[i][j * 2 + 1]), 
+                     0, static_cast<int>(INPUT_H));
                 armor.objects_keypoints[j] = cv::Point(x, y);
             }
             sort_keypoints(armor.objects_keypoints);

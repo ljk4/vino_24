@@ -11,10 +11,10 @@
 #include <openvino/op/ops.hpp>
 #include <openvino/runtime/runtime.hpp>
 
-static const std::string model_path = "/home/ljk/rm_model/v8_armor/best.onnx";
-static const std::string video_path = "/home/ljk/armr_test/video_test/test.mp4";
-static constexpr int MODUL_INPUT_W = 416;    // 模型图像的宽度
-static constexpr int MODUL_INPUT_H = 416;    // 模型图像的高度
+static const std::string model_path = "/home/ljk/rm_model/new_25_mode/best.onnx";
+static const std::string video_path = "/home/ljk/rm_model/6.mp4";
+static constexpr int MODUL_INPUT_W = 640;    // 模型图像的宽度
+static constexpr int MODUL_INPUT_H = 640;    // 模型图像的高度
 
 static constexpr float BBOX_CONF_THRESH = 0.7;  // 边界框的置信度阈值
 static constexpr float NMS_THRESH = 0.3;  // 非极大值抑制（NMS）的阈值
@@ -53,8 +53,11 @@ public:
     void startInferAndNMS(cv::Mat& inframe);
     std::vector<Armor> get_armor();
     void clear_armor();
+    void initNMSModel();
 private:
     ov::InferRequest infer_request;
+    ov::CompiledModel nms_compiled_model;
+    ov::InferRequest nms_infer_request;
     std::vector<Armor> last_Armors;
     size_t INPUT_W;
     size_t INPUT_H;

@@ -52,7 +52,7 @@ int main(int argc, char* argv[])
         frame_count++;
 
         // 按下ESC键退出
-        int k = cv::waitKey(10);
+        int k = cv::waitKey(50);
         if (k == 27) {
             std::cout << "退出" << std::endl;
             break;
